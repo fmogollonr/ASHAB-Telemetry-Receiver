@@ -5,6 +5,7 @@
 #include <U8g2lib.h>
 #include <SPI.h>
 #include <RH_RF95.h>
+#include <SD.h>
 #include "logo.xbm"
 
 #define DEBUG_SERIAL Serial
@@ -14,9 +15,10 @@
 #define LED		25
 
 // OLED
-#define OLED_CLK 	5 // 15
-#define OLED_DAT 	4
+#define OLED_CLK 	22 // 15
+#define OLED_DAT 	21
 #define OLED_RST 	23 // 16
+#define LOG_PATH "/lora_recv.log"
 
 // LoRa
 #define LORA_SS		18
@@ -32,6 +34,12 @@
 #define LINE8_6 56+1
 #define LINE8_7 64+1
 
+
+#define SD_CS 13
+#define SD_SCK 14
+#define SD_MOSI 15
+#define SD_MISO 2
+
 #define FONT_7t	u8g2_font_artossans8_8r
 #define FONT_16n u8g2_font_logisoso16_tn
 
@@ -41,6 +49,8 @@ RH_RF95 rf95(LORA_SS, LORA_INT);
 
 // receive buffer
 uint8_t buf[PKT_LEN];
+
+int size=5;
 
 void setup()
 {
@@ -70,6 +80,42 @@ void setup()
 	DEBUG_SERIAL.begin(115200);
 	//DEBUG_SERIAL.buffer(255);
 
+	SPIClass sd_spi(HSPI);
+
+	sd_spi.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+
+    if(!SD.begin(SD_CS, sd_spi)){
+		u8g2.drawStr(2, LINE8_2,"SD NOK");
+    }
+	else
+	{
+		u8g2.drawStr(2, LINE8_2,"SD OK");
+	}
+	
+    uint8_t cardType = SD.cardType();
+
+    if(cardType == CARD_NONE){
+		u8g2.drawStr(2, LINE8_2,"No SD card");
+	}
+	else
+	{
+		u8g2.drawStr(2, LINE8_2,"OTHER SD");
+	}
+
+	uint8_t buffer[size];
+	memcpy(buffer, "lora", size);
+	
+
+	File test = SD.open(LOG_PATH, FILE_APPEND);
+	 if (!test) {
+            u8g2.drawStr(2, LINE8_2,"SD failed");
+        } else {
+            u8g2.drawStr(2, LINE8_2,"SD Append");
+            test.write(buffer,32);
+            //test.printf("\n\n");
+            test.close();
+}
+
 	// Init LoRa
 	if (!rf95.init())
 	{
@@ -83,6 +129,7 @@ void setup()
 		u8g2.drawStr(2, LINE8_1,"LoRa OK");
 		u8g2.sendBuffer();
 	}
+
 
 	// receiver, low power	
 	rf95.setFrequency(868.5);
