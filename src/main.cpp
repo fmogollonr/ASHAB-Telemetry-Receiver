@@ -11,6 +11,8 @@
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WiFiAP.h>
+#include <DNSServer.h>
+const byte DNS_PORT = 53;
 
 // Configs
 #define DEBUG_SERIAL Serial
@@ -49,6 +51,9 @@
 
 #define FONT_7t u8g2_font_artossans8_8r
 #define FONT_16n u8g2_font_logisoso16_tn
+
+IPAddress apIP(192, 168, 4, 1);
+DNSServer dnsServer;
 
 // Objects
 U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, /* clock=*/ OLED_CLK, /* data=*/ OLED_DAT, /* reset=*/ OLED_RST);
@@ -117,8 +122,8 @@ const char* page_bottom =
 "               var lat = position.split(',')[0];\n"
 "               var lon = position.split(',')[1];\n"
 "               list.innerHTML += '<li>Position: ' +\n"
-"                   \"<a href='http://maps.google.com/maps?z=14&t=m&q=loc:\" +\n"
-"                   lat + '+' + lon + \"'> \" + position + \"</a> </li>\\n\";\n"
+"                   \"<a href='geo:\" +\n"
+"                   lat + ',' + lon + \"'> \" + position + \"</a> </li>\\n\";\n"
 "               var altitude = fields[3].split('=')[1];\n"
 "               list.innerHTML += '<li>Altitude: ' +\n"
 "                   altitude + ' m </li>\\n';\n"
@@ -132,6 +137,21 @@ const char* page_bottom =
 "               list.innerHTML += '<li>Battery: ' +\n"
 "                   bat + ' V </li>\\n';\n"
 "           }\n"
+"           else {\n"
+"           // clear it\n"
+"               document.getElementById('telemetry').innerHTML = '';\n"
+"\n"
+"               document.getElementById('telemetry').innerHTML += '<ul class=\"striped-list\">\\n';\n"
+"               var fields = telemetry.split('/');\n"
+"               var date = fields[8];\n"
+"               const list = document.querySelector('ul');\n"
+                "lat=47.35;\n"
+                "lon=17.35;\n"
+                "position='mi casa';\n"
+"               list.innerHTML += '<li>Position: ' +\n"
+"                   \"<a href='geo:\" +\n"
+"                   lat + ',' + lon + \"'> \" + position + \"</a> </li>\\n\";\n"
+" }\n"
 "       </script>\n"
 "   </body>\n"
 "</html>\n";
@@ -161,8 +181,11 @@ void setup()
     pinMode(LED, OUTPUT);
 
     // WiFi
-    WiFi.softAP(WIFI_SSID, WIFI_PASS);
-    IPAddress myIP = WiFi.softAPIP();
+    WiFi.mode(WIFI_AP);
+    WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
+    WiFi.softAP("ASHAB LoRa receiver");
+
+    dnsServer.start(DNS_PORT, "*", apIP);
 
     // and server
     server.begin();
@@ -206,7 +229,7 @@ void setup()
     {
         DEBUG_SERIAL.println("#RF95 Init OK");  
         u8g2.drawStr(2, LINE8_1,"LoRa OK");
-        u8g2.drawStr(2, LINE8_2, myIP.toString().c_str());
+        u8g2.drawStr(2, LINE8_2, apIP.toString().c_str());
         u8g2.sendBuffer();
     }
 
@@ -271,7 +294,7 @@ void loop()
             DEBUG_SERIAL.println("#Recv failed");
         }
     }
-
+    dnsServer.processNextRequest();
     // check for wifi clients
     WiFiClient client = server.available();   // listen for incoming clients
 
